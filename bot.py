@@ -1,4 +1,6 @@
 import logging
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from dotenv import load_dotenv
 from telegram.ext import (
     ApplicationBuilder,
@@ -18,6 +20,18 @@ from handlers import (
 )
 from scheduler import start_scheduler
 
+# ── Keep-Alive Web Server ──────────────────────────────────────────────────
+class HealthCheckHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header('Content-type', 'text/plain')
+        self.end_headers()
+        self.wfile.write(b"Bot is alive!")
+
+def run_health_server():
+    server = HTTPServer(('0.0.0.0', 10000), HealthCheckHandler)
+    server.serve_forever()
+
 # ── Logging setup ─────────────────────────────────────────────────────────────
 logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -28,6 +42,10 @@ logger = logging.getLogger(__name__)
 
 def main():
     load_dotenv()
+
+    # Start Health Check Server in a background thread
+    threading.Thread(target=run_health_server, daemon=True).start()
+    logger.info("[Bot] Health check server started on port 10000")
 
     logger.info("[Bot] Initializing database...")
     init_db()
